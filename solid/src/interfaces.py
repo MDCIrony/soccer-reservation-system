@@ -98,3 +98,57 @@ class IReservaRepository(ABC):
     def seed(self, reservas: List[Reserva]) -> None:
         """Puebla las reservas si la base de datos está vacía."""
         pass
+
+
+class IReservationView(ABC):
+    @abstractmethod
+    def clear(self) -> None:
+        pass
+
+    @abstractmethod
+    def mostrar_header(self) -> None:
+        pass
+
+    @abstractmethod
+    def mostrar_menu_principal(self) -> None:
+        pass
+
+    @abstractmethod
+    def mostrar_mensaje_exito(self, mensaje: str) -> None:
+        pass
+
+    @abstractmethod
+    def mostrar_mensaje_error(self, mensaje: str) -> None:
+        pass
+
+    @abstractmethod
+    def mostrar_mensaje_info(self, mensaje: str) -> None:
+        pass
+
+    @abstractmethod
+    def mostrar_canchas_disponibilidad(self, fecha: str, disponibilidad_canchas: List[dict]) -> None:
+        pass
+
+    @abstractmethod
+    def mostrar_clientes(self, clientes: List[Cliente]) -> None:
+        pass
+
+    @abstractmethod
+    def mostrar_canchas(self, canchas: List[Cancha]) -> None:
+        pass
+
+    @abstractmethod
+    def mostrar_resumen_reserva(self, cliente_nombre: str, cancha_nombre: str, cancha_tipo: str, fecha: str, hora_inicio: int, hora_fin: int, duracion: int, precio_hora: float, total: float) -> None:
+        pass
+
+    @abstractmethod
+    def mostrar_reservas_activas(self, reservas: List[Reserva]) -> None:
+        pass
+
+    @abstractmethod
+    def mostrar_detalles_cancelacion(self, reserva: Reserva) -> None:
+        pass
+
+    @abstractmethod
+    def mostrar_reporte_estadisticas(self, stats: dict) -> None:
+        pass
