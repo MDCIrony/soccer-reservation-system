@@ -2,11 +2,11 @@ import sys
 from datetime import datetime
 from rich.prompt import Prompt, IntPrompt, Confirm
 from src.services.reserva_service import ReservaService
-from src.ui.console_view import ConsoleView
+from src.interfaces import IReservationView
 from src.models import Cliente, Cancha, Reserva
 
 class MenuController:
-    def __init__(self, service: ReservaService, view: ConsoleView):
+    def __init__(self, service: ReservaService, view: IReservationView):
         self.service = service
         self.view = view
 

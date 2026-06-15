@@ -5,9 +5,10 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.align import Align
 from rich.columns import Columns
+from src.interfaces import IReservationView
 from src.models import Cancha, Cliente, Reserva
 
-class ConsoleView:
+class ConsoleView(IReservationView):
     def __init__(self):
         self.console = Console()
 
