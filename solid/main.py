@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from src.repositories.sqlite_repos import (
     initialize_sqlite_db,
+    SqliteConnectionProvider,
     SqliteCanchaRepository,
     SqliteClienteRepository,
     SqliteReservaRepository
@@ -47,10 +48,13 @@ def main():
     # 1. Inicializar base de datos
     initialize_sqlite_db(DB_FILE)
 
-    # 2. Instanciar Repositorios (Detalles de persistencia)
-    cancha_repo = SqliteCanchaRepository(DB_FILE)
-    cliente_repo = SqliteClienteRepository(DB_FILE)
-    reserva_repo = SqliteReservaRepository(DB_FILE)
+    # Instanciar el proveedor de conexión
+    db_provider = SqliteConnectionProvider(DB_FILE)
+
+    # 2. Instanciar Repositorios (inyectando el proveedor de conexión)
+    cancha_repo = SqliteCanchaRepository(db_provider)
+    cliente_repo = SqliteClienteRepository(db_provider)
+    reserva_repo = SqliteReservaRepository(db_provider)
 
     # 3. Correr semillas (seeding)
     run_seeding(cancha_repo, cliente_repo, reserva_repo)
@@ -68,8 +72,11 @@ def main():
     # 6. Instanciar Controlador inyectando Servicio y Vista
     controller = MenuController(service=reserva_service, view=view)
 
-    # 7. Ejecutar aplicación
-    controller.run()
+    # 7. Ejecutar aplicación asegurando el cierre del proveedor al salir
+    try:
+        controller.run()
+    finally:
+        db_provider.close()
 
 if __name__ == "__main__":
     main()

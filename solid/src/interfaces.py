@@ -2,6 +2,18 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 from src.models import Cancha, Cliente, Reserva
 
+class IDbConnectionProvider(ABC):
+    @abstractmethod
+    def get_connection(self):
+        """Retorna una conexión activa a la base de datos."""
+        pass
+
+    @abstractmethod
+    def close(self) -> None:
+        """Cierra la conexión si está abierta."""
+        pass
+
+
 class ICanchaRepository(ABC):
     @abstractmethod
     def get_all(self) -> List[Cancha]:
