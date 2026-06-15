@@ -1,6 +1,6 @@
 import sqlite3
 from typing import List, Optional
-from src.interfaces import ICanchaRepository, IClienteRepository, IReservaRepository
+from src.interfaces import ICanchaRepository, IClienteRepository, IReservaRepository, IDbConnectionProvider
 from src.models import Cancha, Cliente, Reserva
 
 def initialize_sqlite_db(db_path: str):
@@ -45,27 +45,40 @@ def initialize_sqlite_db(db_path: str):
     conn.close()
 
 
-class SqliteCanchaRepository(ICanchaRepository):
+class SqliteConnectionProvider(IDbConnectionProvider):
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self._connection = None
+
+    def get_connection(self):
+        if self._connection is None:
+            self._connection = sqlite3.connect(self.db_path)
+            self._connection.row_factory = sqlite3.Row
+        return self._connection
+
+    def close(self) -> None:
+        if self._connection is not None:
+            self._connection.close()
+            self._connection = None
+
+
+class SqliteCanchaRepository(ICanchaRepository):
+    def __init__(self, db_provider: IDbConnectionProvider):
+        self.db_provider = db_provider
 
     def _get_connection(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+        return self.db_provider.get_connection()
 
     def get_all(self) -> List[Cancha]:
         conn = self._get_connection()
         cursor = conn.cursor()
         rows = cursor.execute("SELECT * FROM canchas").fetchall()
-        conn.close()
         return [Cancha(id=r["id"], nombre=r["nombre"], tipo=r["tipo"], precio_hora=r["precio_hora"]) for r in rows]
 
     def get_by_id(self, id: int) -> Optional[Cancha]:
         conn = self._get_connection()
         cursor = conn.cursor()
         row = cursor.execute("SELECT * FROM canchas WHERE id = ?", (id,)).fetchone()
-        conn.close()
         if row:
             return Cancha(id=row["id"], nombre=row["nombre"], tipo=row["tipo"], precio_hora=row["precio_hora"])
         return None
@@ -80,30 +93,25 @@ class SqliteCanchaRepository(ICanchaRepository):
                 [(c.nombre, c.tipo, c.precio_hora) for c in canchas]
             )
             conn.commit()
-        conn.close()
 
 
 class SqliteClienteRepository(IClienteRepository):
-    def __init__(self, db_path: str):
-        self.db_path = db_path
+    def __init__(self, db_provider: IDbConnectionProvider):
+        self.db_provider = db_provider
 
     def _get_connection(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+        return self.db_provider.get_connection()
 
     def get_all(self) -> List[Cliente]:
         conn = self._get_connection()
         cursor = conn.cursor()
         rows = cursor.execute("SELECT * FROM clientes").fetchall()
-        conn.close()
         return [Cliente(id=r["id"], nombre=r["nombre"], telefono=r["telefono"], email=r["email"]) for r in rows]
 
     def get_by_id(self, id: int) -> Optional[Cliente]:
         conn = self._get_connection()
         cursor = conn.cursor()
         row = cursor.execute("SELECT * FROM clientes WHERE id = ?", (id,)).fetchone()
-        conn.close()
         if row:
             return Cliente(id=row["id"], nombre=row["nombre"], telefono=row["telefono"], email=row["email"])
         return None
@@ -112,7 +120,6 @@ class SqliteClienteRepository(IClienteRepository):
         conn = self._get_connection()
         cursor = conn.cursor()
         row = cursor.execute("SELECT * FROM clientes WHERE email = ?", (email.strip().lower(),)).fetchone()
-        conn.close()
         if row:
             return Cliente(id=row["id"], nombre=row["nombre"], telefono=row["telefono"], email=row["email"])
         return None
@@ -126,7 +133,6 @@ class SqliteClienteRepository(IClienteRepository):
         )
         conn.commit()
         last_id = cursor.lastrowid
-        conn.close()
         return last_id
 
     def seed(self, clientes: List[Cliente]) -> None:
@@ -139,17 +145,14 @@ class SqliteClienteRepository(IClienteRepository):
                 [(c.nombre, c.telefono, c.email.lower()) for c in clientes]
             )
             conn.commit()
-        conn.close()
 
 
 class SqliteReservaRepository(IReservaRepository):
-    def __init__(self, db_path: str):
-        self.db_path = db_path
+    def __init__(self, db_provider: IDbConnectionProvider):
+        self.db_provider = db_provider
 
     def _get_connection(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+        return self.db_provider.get_connection()
 
     def get_all_active(self) -> List[Reserva]:
         conn = self._get_connection()
@@ -162,7 +165,6 @@ class SqliteReservaRepository(IReservaRepository):
             WHERE r.estado = 'Confirmada'
             ORDER BY r.fecha ASC, r.hora_inicio ASC
         """).fetchall()
-        conn.close()
 
         reservas = []
         for r in rows:
@@ -191,7 +193,6 @@ class SqliteReservaRepository(IReservaRepository):
             JOIN clientes cl ON r.cliente_id = cl.id
             WHERE r.id = ?
         """, (id,)).fetchone()
-        conn.close()
         if row:
             res = Reserva(
                 id=row["id"],
@@ -218,7 +219,6 @@ class SqliteReservaRepository(IReservaRepository):
             JOIN clientes cl ON r.cliente_id = cl.id
             WHERE r.fecha = ? AND r.estado = 'Confirmada'
         """, (fecha,)).fetchall()
-        conn.close()
 
         reservas = []
         for r in rows:
@@ -250,7 +250,6 @@ class SqliteReservaRepository(IReservaRepository):
               AND r.hora_inicio < ?
               AND r.hora_fin > ?
         """, (cancha_id, fecha, hora_fin, hora_inicio)).fetchall()
-        conn.close()
 
         conflictos = []
         for r in rows:
@@ -278,7 +277,6 @@ class SqliteReservaRepository(IReservaRepository):
               reserva.hora_inicio, reserva.hora_fin, reserva.total, reserva.estado))
         conn.commit()
         last_id = cursor.lastrowid
-        conn.close()
         return last_id
 
     def cancel(self, id: int) -> None:
@@ -286,7 +284,6 @@ class SqliteReservaRepository(IReservaRepository):
         cursor = conn.cursor()
         cursor.execute("UPDATE reservas SET estado = 'Cancelada' WHERE id = ?", (id,))
         conn.commit()
-        conn.close()
 
     def get_financial_stats(self) -> dict:
         conn = self._get_connection()
@@ -338,8 +335,6 @@ class SqliteReservaRepository(IReservaRepository):
         res_activas = cursor.execute("SELECT COUNT(*) FROM reservas WHERE estado = 'Confirmada'").fetchone()[0]
         res_canceladas = cursor.execute("SELECT COUNT(*) FROM reservas WHERE estado = 'Cancelada'").fetchone()[0]
 
-        conn.close()
-
         return {
             "total_ingresos": total_ingresos,
             "canchas_stats": canchas_stats,
@@ -358,4 +353,3 @@ class SqliteReservaRepository(IReservaRepository):
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, [(r.cancha_id, r.cliente_id, r.fecha, r.hora_inicio, r.hora_fin, r.total, r.estado) for r in reservas])
             conn.commit()
-        conn.close()
