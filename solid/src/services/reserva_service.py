@@ -108,30 +108,11 @@ class ReservaService:
         if not cancha:
             raise ValueError(f"La cancha con ID {cancha_id} no existe.")
 
-        # 2. Validaciones de negocio del horario
+        # 2. Validaciones de negocio del horario (Delegadas al Modelo de Dominio Rico)
         if not self._validar_fecha(fecha):
             raise ValueError("Formato de fecha inválido. Debe ser YYYY-MM-DD.")
 
-        if hora_inicio < 8 or hora_inicio > 21:
-            raise ValueError("La hora de inicio debe estar en el rango de 8 (08:00) a 21 (21:00).")
-
-        if duracion < 1 or duracion > 4:
-            raise ValueError("La duración de la reserva debe ser de entre 1 y 4 horas.")
-
         hora_fin = hora_inicio + duracion
-        if hora_fin > 22:
-            raise ValueError(f"La reserva no puede terminar después del horario de cierre (22:00). Finalizaría a las {hora_fin}:00.")
-
-        # 3. Validar disponibilidad de cancha (Traslapes)
-        conflictos = self.reserva_repo.check_overlap(cancha_id, fecha, hora_inicio, hora_fin)
-        if conflictos:
-            detalles = ", ".join([f"Reserva #{c.id} ({c.cliente_nombre}) de {c.hora_inicio:02d}:00 a {c.hora_fin:02d}:00" for c in conflictos])
-            raise ValueError(f"La cancha '{cancha.nombre}' ya está ocupada en ese horario. Conflictos: {detalles}")
-
-        # 4. Calcular costo
-        total = duracion * cancha.precio_hora
-
-        # 5. Guardar la reserva
         reserva = Reserva(
             id=None,
             cancha_id=cancha_id,
@@ -139,10 +120,26 @@ class ReservaService:
             fecha=fecha,
             hora_inicio=hora_inicio,
             hora_fin=hora_fin,
-            total=total,
+            total=0.0,
             estado="Confirmada"
         )
 
+        if not reserva.es_horario_valido():
+            raise ValueError("La hora de inicio debe estar en el rango de 8 (08:00) a 21 (21:00), y no exceder las 22:00.")
+
+        if not reserva.es_duracion_valida():
+            raise ValueError("La duración de la reserva debe ser de entre 1 y 4 horas.")
+
+        # Calcular costo (Regla del Modelo de Dominio Rico)
+        reserva.calcular_total(cancha.precio_hora)
+
+        # 3. Validar disponibilidad de cancha (Traslapes)
+        conflictos = self.reserva_repo.check_overlap(cancha_id, fecha, hora_inicio, hora_fin)
+        if conflictos:
+            detalles = ", ".join([f"Reserva #{c.id} ({c.cliente_nombre}) de {c.hora_inicio:02d}:00 a {c.hora_fin:02d}:00" for c in conflictos])
+            raise ValueError(f"La cancha '{cancha.nombre}' ya está ocupada en ese horario. Conflictos: {detalles}")
+
+        # 4. Guardar la reserva
         reserva_id = self.reserva_repo.save(reserva)
         reserva.id = reserva_id
         reserva.cancha_nombre = cancha.nombre
